@@ -1,6 +1,5 @@
 package com.example.controller;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -17,8 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.entities.Tutorial;
-import com.example.exception.ResourceNotFoundException;
-import com.example.repository.TutorialRepository;
+import com.example.service.TutorialService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,24 +25,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TutorialController {
 
-    private final TutorialRepository tutorialRepository;
+    private final TutorialService tutorialService;
 
     @GetMapping("/tutorials")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<List<Tutorial>> getAllTutorials(@RequestParam(required = false) String title) {
 
-        // Creamos lista de tutoriales
-        List<Tutorial> tutorials = new ArrayList<Tutorial>();
+        // El servicio decide si busca por titulo o devuelve todos
+        List<Tutorial> tutorials = tutorialService.findAll(title);
 
-        // Si no me pasan un titulo paso todos los tutoriales. Como al final hay un
-        // forEach
-        // no hace falta un stream. Paso todos los tutoriales y los añado a la lista:
-        if (title == null)
-            tutorialRepository.findAll().forEach(tutorials::add);
-        // en caso de tener un titulo buscamos por titulo y son los tutoriales que
-        // devolvemos:
-        else
-            tutorialRepository.findByTitleContaining(title).forEach(tutorials::add);
         // si no viene nada de nada, se lo indicamos:
         if (tutorials.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
@@ -56,49 +45,35 @@ public class TutorialController {
     @GetMapping("/tutorials/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<Tutorial> getTutorialById(@PathVariable("id") long id) {
-        Tutorial tutorial = tutorialRepository.findById(id)
-                // con esto mandamos nuestro mensaje personalizado que empezamos a preparar
-                // desde ResourceNotFoundException
-                .orElseThrow(() -> new ResourceNotFoundException("Not found Tutorial with id = " + id));
+
+        // Si no existe, el servicio lanza ResourceNotFoundException (404)
+        Tutorial tutorial = tutorialService.findById(id);
 
         // HttpStatus.OK es el que te da el estado 200 del servidor, como vemos en
         // postman.
         return new ResponseEntity<>(tutorial, HttpStatus.OK);
     }
 
-    // Este método recoge un tutorial y usa un constructor para crearlo
     @PostMapping("/tutorials")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Tutorial> createTutorial(@RequestBody Tutorial tutorial) {
-        Tutorial _tutorial = tutorialRepository
-                .save(
-                        Tutorial.builder()
-                                .title(tutorial.getTitle())
-                                .description(tutorial.getDescription())
-                                .published(true)
-                                .build());
 
-        return new ResponseEntity<>(_tutorial, HttpStatus.CREATED);
+        return new ResponseEntity<>(tutorialService.create(tutorial), HttpStatus.CREATED);
     }
 
     @PutMapping("/tutorials/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Tutorial> updateTutorial(@PathVariable("id") long id,
             @RequestBody Tutorial tutorial) {
-        Tutorial _tutorial = tutorialRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Not found Tutorial with id = " + id));
 
-        _tutorial.setTitle(tutorial.getTitle());
-        _tutorial.setDescription(tutorial.getDescription());
-        _tutorial.setPublished(tutorial.isPublished());
-
-        return new ResponseEntity<>(tutorialRepository.save(_tutorial), HttpStatus.OK);
+        return new ResponseEntity<>(tutorialService.update(id, tutorial), HttpStatus.OK);
     }
 
     @DeleteMapping("/tutorials/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HttpStatus> deleteTutorial(@PathVariable("id") long id) {
-        tutorialRepository.deleteById(id);
+
+        tutorialService.deleteById(id);
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
@@ -106,7 +81,8 @@ public class TutorialController {
     @DeleteMapping("/tutorials")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HttpStatus> deleteAllTutorials() {
-        tutorialRepository.deleteAll();
+
+        tutorialService.deleteAll();
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
@@ -114,14 +90,14 @@ public class TutorialController {
     @GetMapping("/tutorials/published")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<List<Tutorial>> findByPublished() {
-        List<Tutorial> tutorials = tutorialRepository.findByPublished(true);
+
+        List<Tutorial> tutorials = tutorialService.findByPublished(true);
 
         if (tutorials.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         }
 
         return new ResponseEntity<>(tutorials, HttpStatus.OK);
-
     }
 
 }
@@ -186,4 +162,16 @@ public class TutorialController {
  * only override the write methods with hasRole('ADMIN') (a method-level
  * annotation replaces the class-level one). I kept it per method, as in the
  * example.
+ */
+
+/*
+ * What changed in the controllers
+ * The field is now a service, not repositories, so the imports of the
+ * repositories, ArrayList and ResourceNotFoundException disappear.
+ * Each method is thinner: it receives the request, calls the service and
+ * chooses the HTTP status (201, 204...). That is exactly the controller's job.
+ * 
+ * @PreAuthorize stays on the controllers, as in the example. The security rule
+ * is about who may call the HTTP endpoint.
+ * The routes, roles and status codes are identical.
  */

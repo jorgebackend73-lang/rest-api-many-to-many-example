@@ -1,6 +1,5 @@
 package com.example.controller;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -17,9 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.entities.Tag;
 import com.example.entities.Tutorial;
-import com.example.exception.ResourceNotFoundException;
-import com.example.repository.TagRepository;
-import com.example.repository.TutorialRepository;
+import com.example.service.TagService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,15 +25,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TagController {
 
-    private final TutorialRepository tutorialRepository;
-    private final TagRepository tagRepository;
+    private final TagService tagService;
 
     @GetMapping("/tags")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<List<Tag>> getAllTags() {
-        List<Tag> tags = new ArrayList<Tag>();
 
-        tagRepository.findAll().forEach(tags::add);
+        List<Tag> tags = tagService.findAll();
 
         if (tags.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
@@ -48,69 +43,38 @@ public class TagController {
     @GetMapping("/tutorials/{tutorialId}/tags")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<List<Tag>> getAllTagsByTutorialId(@PathVariable Long tutorialId) {
-        if (!tutorialRepository.existsById(tutorialId)) {
-            throw new ResourceNotFoundException("Not found Tutorial with id = " + tutorialId);
-        }
 
-        List<Tag> tags = tagRepository.findTagsByTutorialsId(tutorialId);
-        return new ResponseEntity<>(tags, HttpStatus.OK);
+        return new ResponseEntity<>(tagService.findByTutorialId(tutorialId), HttpStatus.OK);
     }
 
     @GetMapping("/tags/{tagId}/tutorials")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     public ResponseEntity<List<Tutorial>> getAllTutorialsByTagId(@PathVariable Long tagId) {
-        if (!tagRepository.existsById(tagId)) {
-            throw new ResourceNotFoundException("Not found Tag with id = " + tagId);
-        }
 
-        List<Tutorial> tutorials = tutorialRepository.findTutorialsByTagsId(tagId);
-        return new ResponseEntity<>(tutorials, HttpStatus.OK);
+        return new ResponseEntity<>(tagService.findTutorialsByTagId(tagId), HttpStatus.OK);
     }
 
     @PostMapping("/tutorials/{tutorialId}/tags")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Tag> addTag(@PathVariable Long tutorialId,
             @RequestBody Tag tagRequest) {
-        Tag tag = tutorialRepository.findById(tutorialId).map(tutorial -> {
-            long tagId = tagRequest.getId();
 
-            // tag is existed
-            if (tagId != 0L) {
-                Tag _tag = tagRepository.findById(tagId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Not found Tag with id = " + tagId));
-                tutorial.addTag(_tag);
-                tutorialRepository.save(tutorial);
-                return _tag;
-            }
-
-            // add and create new Tag
-            tutorial.addTag(tagRequest);
-            return tagRepository.save(tagRequest);
-        }).orElseThrow(() -> new ResourceNotFoundException("Not found Tutorial with id = " + tutorialId));
-
-        return new ResponseEntity<>(tag, HttpStatus.CREATED);
+        return new ResponseEntity<>(tagService.addTagToTutorial(tutorialId, tagRequest), HttpStatus.CREATED);
     }
 
     @PutMapping("/tags/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Tag> updateTag(@PathVariable long id, @RequestBody Tag tagRequest) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TagId " + id + "not found"));
 
-        tag.setName(tagRequest.getName());
-
-        return new ResponseEntity<>(tagRepository.save(tag), HttpStatus.OK);
+        return new ResponseEntity<>(tagService.update(id, tagRequest), HttpStatus.OK);
     }
 
     @DeleteMapping("/tutorials/{tutorialId}/tags/{tagId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HttpStatus> deleteTagFromTutorial(@PathVariable Long tutorialId,
             @PathVariable Long tagId) {
-        Tutorial tutorial = tutorialRepository.findById(tutorialId)
-                .orElseThrow(() -> new ResourceNotFoundException("Not found Tutorial with id = " + tutorialId));
 
-        tutorial.removeTag(tagId);
-        tutorialRepository.save(tutorial);
+        tagService.removeTagFromTutorial(tutorialId, tagId);
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
@@ -118,7 +82,8 @@ public class TagController {
     @DeleteMapping("/tags/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HttpStatus> deleteTag(@PathVariable long id) {
-        tagRepository.deleteById(id);
+
+        tagService.deleteById(id);
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
@@ -185,4 +150,16 @@ public class TagController {
  * only override the write methods with hasRole('ADMIN') (a method-level
  * annotation replaces the class-level one). I kept it per method, as in the
  * example.
+ */
+
+/*
+ * What changed in the controllers
+ * The field is now a service, not repositories, so the imports of the
+ * repositories, ArrayList and ResourceNotFoundException disappear.
+ * Each method is thinner: it receives the request, calls the service and
+ * chooses the HTTP status (201, 204...). That is exactly the controller's job.
+ * 
+ * @PreAuthorize stays on the controllers, as in the example. The security rule
+ * is about who may call the HTTP endpoint.
+ * The routes, roles and status codes are identical.
  */
