@@ -164,14 +164,4 @@ public class TutorialController {
  * example.
  */
 
-/*
- * What changed in the controllers
- * The field is now a service, not repositories, so the imports of the
- * repositories, ArrayList and ResourceNotFoundException disappear.
- * Each method is thinner: it receives the request, calls the service and
- * chooses the HTTP status (201, 204...). That is exactly the controller's job.
- * 
- * @PreAuthorize stays on the controllers, as in the example. The security rule
- * is about who may call the HTTP endpoint.
- * The routes, roles and status codes are identical.
- */
+
