@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
+import org.springframework.test.annotation.Rollback;
 
 import com.example.entities.Tag;
 import com.example.entities.Tutorial;
@@ -20,6 +21,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 @DataJpaTest
+// @Rollback(value = false) cuidado pq con esta anotación la siguiente no funcionaría
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 class TutorialRepositoryTest {
 
